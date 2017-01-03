@@ -324,10 +324,40 @@
     if (self.useSLP) //OSC 1.1
 	  [F53OSCParser translateSlipData:data toData:self.readData withState:self.readState destination:self.delegate];
 	else //OSC 1.0 packet length headers
-	{ //removed first four bytes which reflect the length
-	  NSRange range = NSMakeRange(4, [data length] - 4);
-	  NSData *refinedData = [data subdataWithRange:range];
-	  [F53OSCParser processOscData:refinedData forDestination:self.delegate replyToSocket: self.socket];
+	{
+	  NSUInteger length = [data length];
+	  if ( length > sizeof( UInt64 ) )
+	  {
+		  const char *buffer = [data bytes];
+		  UInt64 dataSize = *((UInt64 *)buffer);
+		  dataSize = OSSwapBigToHostInt64( dataSize );
+		
+		  if ( length - sizeof( UInt64 ) >= dataSize )
+		  {
+		      buffer += sizeof( UInt64 );
+			  length -= sizeof( UInt64 );
+			  NSData *oscData = [NSData dataWithBytes:buffer length:dataSize];
+			
+			  buffer += dataSize;
+			  length -= dataSize;
+			  NSData *newData = nil;
+			  if ( length )
+			     newData = [NSData dataWithBytes:buffer length:length];
+			  else
+				  newData = [NSData data];
+			
+			
+			  #if F53_OSC_CLIENT_DEBUG
+				   NSLog( @"client socket %p dispatching oscData of length %lu, leaving buffer of length %lu.", sock, [oscData length], [data length] );
+			  #endif
+			
+			  [F53OSCParser processOscData:oscData forDestination:self.delegate replyToSocket:self.socket];
+		  } else
+		  {
+			       // TODO: protect against them filling up the buffer with a huge amount of incoming data.
+		  }
+	  }
+	 
 	}
   
     [sock readDataWithTimeout:-1 tag:tag];
