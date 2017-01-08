@@ -31,6 +31,8 @@
 #import "F53OSCClient.h"
 #import "F53OSCParser.h"
 
+//#define  F53_OSC_CLIENT_DEBUG 1
+
 
 @interface F53OSCClient ()
 
@@ -326,16 +328,24 @@
 	else //OSC 1.0 packet length headers
 	{
 	  NSUInteger length = [data length];
-	  if ( length > sizeof( UInt64 ) )
+	  
+	  if ( length > sizeof( UInt32 ) )
 	  {
 		  const char *buffer = [data bytes];
-		  UInt64 dataSize = *((UInt64 *)buffer);
-		  dataSize = OSSwapBigToHostInt64( dataSize );
+		  NSData *lengthData = [data subdataWithRange: NSMakeRange(0, sizeof( UInt32))];
 		
-		  if ( length - sizeof( UInt64 ) >= dataSize )
+		
+		//RW - this was all previously reading in a UInt64 but eos seems to send UInt32 (as per spec)
+		  //UInt64 dataSize = *((UInt64 *)buffer);
+		  const char *lengthBuffer = [lengthData bytes];
+		  UInt32 dataSize = *((UInt32*)lengthBuffer);
+
+		  dataSize = OSSwapBigToHostInt32( dataSize );
+		
+		  if ( length - sizeof( UInt32 ) >= dataSize )
 		  {
-		      buffer += sizeof( UInt64 );
-			  length -= sizeof( UInt64 );
+		      buffer += sizeof( UInt32 );
+			  length -= sizeof( UInt32 );
 			  NSData *oscData = [NSData dataWithBytes:buffer length:dataSize];
 			
 			  buffer += dataSize;
